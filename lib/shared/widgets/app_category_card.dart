@@ -26,17 +26,24 @@ class AppCategoryCard extends StatelessWidget {
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surface,
+          gradient: isSelected
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.primary, AppColors.primaryDark],
+                )
+              : null,
+          color: isSelected ? null : AppColors.surface,
           borderRadius: AppRadius.borderLg,
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
+            color: isSelected ? AppColors.primaryDark : AppColors.border,
             width: isSelected ? 1.5 : 1.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.25),
-                    blurRadius: 8,
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ]
@@ -53,7 +60,7 @@ class AppCategoryCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.surface.withOpacity(0.2) : AppColors.chipBackground,
+                color: isSelected ? AppColors.surface : AppColors.chipBackground,
                 shape: BoxShape.circle,
               ),
               child: Text(

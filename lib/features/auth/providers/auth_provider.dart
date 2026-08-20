@@ -2,19 +2,22 @@ import 'package:flutter/foundation.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../data/datasources/remote/auth_remote_data_source.dart';
+import '../../../data/datasources/remote/driver_remote_data_source.dart';
 import '../../../data/mock/mock_user.dart';
 import '../../../data/models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthRemoteDataSource _authRemoteDataSource;
+  final DriverRemoteDataSource _avatarRemoteDataSource;
 
   UserModel? _currentUser = MockUser.currentUser;
   bool _isAuthenticated = true; // Logged in by default for smooth UX
   bool _isLoading = false;
   String? _errorMessage;
 
-  AuthProvider({AuthRemoteDataSource? authRemoteDataSource})
-      : _authRemoteDataSource = authRemoteDataSource ?? AuthRemoteDataSource();
+  AuthProvider({AuthRemoteDataSource? authRemoteDataSource, DriverRemoteDataSource? avatarRemoteDataSource})
+      : _authRemoteDataSource = authRemoteDataSource ?? AuthRemoteDataSource(),
+        _avatarRemoteDataSource = avatarRemoteDataSource ?? DriverRemoteDataSource();
 
   UserModel? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
@@ -35,7 +38,7 @@ class AuthProvider extends ChangeNotifier {
         AuthApiConstants.demoPassword,
       );
 
-      _currentUser = _mapDummyJsonUser(response, fallbackEmail: email.isNotEmpty ? email : null);
+      _currentUser = await _mapDummyJsonUser(response, fallbackEmail: email.isNotEmpty ? email : null);
       _isAuthenticated = true;
       _isLoading = false;
       notifyListeners();
@@ -72,7 +75,7 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
 
-      _currentUser = _mapDummyJsonUser(response, fallbackEmail: email, fallbackPhone: phone);
+      _currentUser = await _mapDummyJsonUser(response, fallbackEmail: email, fallbackPhone: phone);
       _isAuthenticated = true;
       _isLoading = false;
       notifyListeners();
@@ -90,17 +93,35 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  UserModel _mapDummyJsonUser(Map<String, dynamic> data, {String? fallbackEmail, String? fallbackPhone}) {
+  Future<UserModel> _mapDummyJsonUser(Map<String, dynamic> data, {String? fallbackEmail, String? fallbackPhone}) async {
     final firstName = (data['firstName'] ?? '').toString();
     final lastName = (data['lastName'] ?? '').toString();
     final fullName = [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
+    final rawUsername = (data['username'] ?? '').toString();
+    final rawEmail = (data['email'] ?? '').toString();
+    final username = [rawUsername, rawEmail, fallbackEmail ?? '', 'guest'].firstWhere((s) => s.isNotEmpty);
+    final rawGender = (data['gender'] ?? '').toString();
+    final gender = rawGender.isNotEmpty ? rawGender : null;
+
+    // DummyJSON's demo accounts only ship a generic identicon (not a real face
+    // photo) as "image", so swap in a real, consistent portrait from
+    // randomuser.me — seeded on the username so it stays the same across logins.
+    String avatarUrl = (data['image'] ?? MockUser.currentUser.avatarUrl).toString();
+    try {
+      final realPhoto = await _avatarRemoteDataSource.fetchAvatarPhotoUrl(username, gender: gender);
+      if (realPhoto != null && realPhoto.isNotEmpty) {
+        avatarUrl = realPhoto;
+      }
+    } catch (_) {
+      // Keep the DummyJSON-provided image if the avatar lookup fails.
+    }
 
     return UserModel(
       id: (data['id'] ?? DateTime.now().millisecondsSinceEpoch).toString(),
       name: fullName.isNotEmpty ? fullName : MockUser.currentUser.name,
       email: (data['email'] ?? fallbackEmail ?? MockUser.currentUser.email).toString(),
       phone: (data['phone'] ?? fallbackPhone ?? MockUser.currentUser.phone).toString(),
-      avatarUrl: (data['image'] ?? MockUser.currentUser.avatarUrl).toString(),
+      avatarUrl: avatarUrl,
     );
   }
 
