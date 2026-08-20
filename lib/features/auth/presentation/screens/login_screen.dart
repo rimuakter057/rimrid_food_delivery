@@ -20,8 +20,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'sarah.jenkins@example.com');
-  final _passwordController = TextEditingController(text: 'password123');
+  final _emailController = TextEditingController(text: 'emilys@example.com');
+  final _passwordController = TextEditingController(text: 'emilyspass');
   bool _rememberMe = true;
 
   @override
@@ -40,6 +40,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (success && mounted) {
         context.go('/home');
+      } else if (mounted) {
+        context.showSnackBar(authProvider.errorMessage ?? 'Login failed. Please try again.');
       }
     }
   }
@@ -88,7 +90,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Demo login — this hits a real auth API (DummyJSON). Credentials are pre-filled for you.',
+                          style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 AppTextField(
                   label: AppStrings.email,
                   hint: AppStrings.emailHint,

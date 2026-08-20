@@ -56,6 +56,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (success && mounted) {
         context.go('/home');
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(authProvider.errorMessage ?? 'Registration failed. Please try again.')),
+        );
       }
     }
   }

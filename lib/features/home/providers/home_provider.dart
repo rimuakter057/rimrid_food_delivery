@@ -8,9 +8,11 @@ import '../../../data/models/category_model.dart';
 import '../../../data/models/food_model.dart';
 import '../../../data/models/restaurant_model.dart';
 import '../../../data/repositories/food_repository.dart';
+import '../../../data/repositories/restaurant_repository.dart';
 
 class HomeProvider extends ChangeNotifier {
   final FoodRepository _foodRepository;
+  final RestaurantRepository _restaurantRepository;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -19,9 +21,11 @@ class HomeProvider extends ChangeNotifier {
 
   List<CategoryModel> _categories = MockCategories.categories;
   List<FoodModel> _apiFoods = [];
+  List<RestaurantModel> _restaurants = MockRestaurants.restaurants;
 
-  HomeProvider({FoodRepository? foodRepository})
-      : _foodRepository = foodRepository ?? FoodRepository() {
+  HomeProvider({FoodRepository? foodRepository, RestaurantRepository? restaurantRepository})
+      : _foodRepository = foodRepository ?? FoodRepository(),
+        _restaurantRepository = restaurantRepository ?? RestaurantRepository() {
     loadHomeData();
   }
 
@@ -31,9 +35,12 @@ class HomeProvider extends ChangeNotifier {
   int get bannerIndex => _bannerIndex;
 
   List<CategoryModel> get categories => _categories;
-  List<RestaurantModel> get popularRestaurants =>
-      MockRestaurants.restaurants.where((r) => r.isPopular).toList();
-  List<RestaurantModel> get allRestaurants => MockRestaurants.restaurants;
+  List<RestaurantModel> get popularRestaurants => _restaurants.where((r) => r.isPopular).toList();
+  List<RestaurantModel> get allRestaurants => _restaurants;
+
+  /// Real food photos pulled from the already-fetched API foods, used to drive
+  /// the home screen's promo banner carousel instead of static placeholder text.
+  List<FoodModel> get bannerFoods => _apiFoods.take(5).toList();
 
   List<FoodModel> get popularFoods {
     if (_apiFoods.isNotEmpty) {
@@ -82,15 +89,27 @@ class HomeProvider extends ChangeNotifier {
     final foodResult = await _foodRepository.getFoodsByCategory('Seafood');
     if (foodResult is Success<List<FoodModel>>) {
       _apiFoods = foodResult.data;
-      _isLoading = false;
       AppLogger.provider('HomeProvider', 'Successfully loaded ${_apiFoods.length} foods from API');
-      notifyListeners();
     } else if (foodResult is Failure<List<FoodModel>>) {
       _errorMessage = foodResult.error;
       _isLoading = false;
       AppLogger.error('HomeProvider', 'API Error loading food list: ${foodResult.error}');
       notifyListeners();
+      return;
     }
+
+    // Fetch restaurants (built from TheMealDB cuisine areas)
+    final restaurantResult = await _restaurantRepository.getRestaurants();
+    if (restaurantResult is Success<List<RestaurantModel>>) {
+      _restaurants = restaurantResult.data;
+      AppLogger.provider('HomeProvider', 'Successfully loaded ${_restaurants.length} restaurants from API');
+    } else if (restaurantResult is Failure<List<RestaurantModel>>) {
+      AppLogger.error('HomeProvider', 'API Error loading restaurants: ${restaurantResult.error}');
+      // Keep the mock fallback rather than failing the whole screen for this.
+    }
+
+    _isLoading = false;
+    notifyListeners();
   }
 
   Future<void> selectCategory(String categoryId) async {

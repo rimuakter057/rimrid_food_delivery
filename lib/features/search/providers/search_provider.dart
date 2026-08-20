@@ -7,9 +7,11 @@ import '../../../data/mock/mock_restaurants.dart';
 import '../../../data/models/food_model.dart';
 import '../../../data/models/restaurant_model.dart';
 import '../../../data/repositories/food_repository.dart';
+import '../../../data/repositories/restaurant_repository.dart';
 
 class SearchProvider extends ChangeNotifier {
   final FoodRepository _foodRepository;
+  final RestaurantRepository _restaurantRepository;
   Timer? _debounceTimer;
 
   String _searchQuery = '';
@@ -17,11 +19,23 @@ class SearchProvider extends ChangeNotifier {
   String? _errorMessage;
 
   List<FoodModel> _apiSearchResults = [];
+  List<RestaurantModel> _allRestaurants = MockRestaurants.restaurants;
   List<String> _recentSearches = ['Chicken', 'Pasta', 'Beef', 'Salad', 'Dessert'];
   final List<String> _popularSearches = ['Chicken', 'Beef', 'Pasta', 'Seafood', 'Dessert', 'Breakfast'];
 
-  SearchProvider({FoodRepository? foodRepository})
-      : _foodRepository = foodRepository ?? FoodRepository();
+  SearchProvider({FoodRepository? foodRepository, RestaurantRepository? restaurantRepository})
+      : _foodRepository = foodRepository ?? FoodRepository(),
+        _restaurantRepository = restaurantRepository ?? RestaurantRepository() {
+    _loadRestaurants();
+  }
+
+  Future<void> _loadRestaurants() async {
+    final result = await _restaurantRepository.getRestaurants();
+    if (result is Success<List<RestaurantModel>>) {
+      _allRestaurants = result.data;
+      notifyListeners();
+    }
+  }
 
   String get searchQuery => _searchQuery;
   bool get isLoading => _isLoading;
@@ -45,7 +59,7 @@ class SearchProvider extends ChangeNotifier {
   List<RestaurantModel> get searchResultsRestaurants {
     if (_searchQuery.trim().isEmpty) return [];
     final query = _searchQuery.toLowerCase();
-    return MockRestaurants.restaurants.where((rest) {
+    return _allRestaurants.where((rest) {
       return rest.name.toLowerCase().contains(query) ||
           rest.tags.any((tag) => tag.toLowerCase().contains(query));
     }).toList();

@@ -8,6 +8,15 @@ import '../models/food_model.dart';
 class FoodRepository {
   final FoodRemoteDataSource _remoteDataSource;
 
+  /// Session-wide cache of every food this app has fetched from the API, keyed by id.
+  /// Lets other providers (e.g. Favorites) resolve an API-loaded food by id even
+  /// though it isn't part of the static mock list.
+  static final Map<String, FoodModel> _foodCache = {};
+
+  static void cacheFood(FoodModel food) => _foodCache[food.id] = food;
+
+  static FoodModel? getCachedFood(String id) => _foodCache[id];
+
   FoodRepository({FoodRemoteDataSource? remoteDataSource})
       : _remoteDataSource = remoteDataSource ?? FoodRemoteDataSource();
 
@@ -90,7 +99,7 @@ class FoodRepository {
         return NetworkResult.failure('Food details not found');
       }
 
-      final food = _mapSingleRawFood(rawDetails);
+      final food = mapRawFood(rawDetails);
       return NetworkResult.success(food);
     } on ApiException catch (e) {
       AppLogger.error('FoodRepository', 'getFoodDetails failed: ${e.message}');
@@ -105,12 +114,16 @@ class FoodRepository {
     final foods = <FoodModel>[];
     for (int i = 0; i < rawList.length; i++) {
       final item = rawList[i];
-      foods.add(_mapSingleRawFood(item, defaultCategory: categoryName, index: i));
+      foods.add(mapRawFood(item, defaultCategory: categoryName, index: i));
     }
     return foods;
   }
 
-  FoodModel _mapSingleRawFood(Map<String, dynamic> item, {String defaultCategory = 'General', int index = 0}) {
+  /// Maps a raw TheMealDB meal object into a [FoodModel], synthesizing the
+  /// delivery-app-specific fields (price/rating/prep time/etc.) deterministically
+  /// from the meal id so the same meal always gets the same values. Public so
+  /// [RestaurantRepository] can reuse it when building a cuisine restaurant's menu.
+  FoodModel mapRawFood(Map<String, dynamic> item, {String defaultCategory = 'General', int index = 0}) {
     final mealId = (item['idMeal'] ?? 'food_$index').toString();
     final mealName = (item['strMeal'] ?? 'Delicious Meal').toString();
     final image = (item['strMealThumb'] ?? '').toString();
@@ -130,7 +143,7 @@ class FoodRepository {
       instructions = 'Freshly prepared $mealName served with signature spices and fresh ingredients.';
     }
 
-    return FoodModel(
+    final food = FoodModel(
       id: mealId,
       restaurantId: 'rest_${(hash % 5) + 1}',
       restaurantName: _getRestaurantName(hash),
@@ -152,6 +165,8 @@ class FoodRepository {
         AddOnModel(id: 'add_3', name: 'Special Sauce Dip', price: 1.00),
       ],
     );
+    cacheFood(food);
+    return food;
   }
 
   String _getCategoryIcon(String catName) {

@@ -5,16 +5,17 @@ import 'api_interceptors.dart';
 class DioClient {
   late final Dio _dio;
 
-  DioClient() {
+  DioClient({String? baseUrl, Map<String, dynamic>? extraHeaders}) {
     _dio = Dio(
       BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
+        baseUrl: baseUrl ?? ApiConstants.baseUrl,
         connectTimeout: ApiConstants.connectTimeout,
         receiveTimeout: ApiConstants.receiveTimeout,
         sendTimeout: ApiConstants.sendTimeout,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          ...?extraHeaders,
         },
       ),
     );
@@ -32,6 +33,20 @@ class DioClient {
     return await _dio.get<T>(
       path,
       queryParameters: queryParameters,
+      options: options,
+      cancelToken: cancelToken,
+    );
+  }
+
+  Future<Response<T>> post<T>(
+    String path, {
+    dynamic data,
+    Options? options,
+    CancelToken? cancelToken,
+  }) async {
+    return await _dio.post<T>(
+      path,
+      data: data,
       options: options,
       cancelToken: cancelToken,
     );

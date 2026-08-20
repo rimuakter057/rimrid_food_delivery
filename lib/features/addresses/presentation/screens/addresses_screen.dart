@@ -16,6 +16,76 @@ import '../../providers/address_provider.dart';
 class AddressesScreen extends StatelessWidget {
   const AddressesScreen({super.key});
 
+  void _showSearchAddressModal(BuildContext context) {
+    final addressProvider = context.read<AddressProvider>();
+    final queryController = TextEditingController();
+
+    AppBottomSheet.show(
+      context: context,
+      title: 'Search Address',
+      child: StatefulBuilder(
+        builder: (context, setStateModal) {
+          List<AddressSearchResult> results = [];
+          bool hasSearched = false;
+
+          Future<void> runSearch(String query) async {
+            final found = await addressProvider.searchAddress(query);
+            setStateModal(() {
+              results = found;
+              hasSearched = true;
+            });
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppTextField(
+                label: 'Search for a real address',
+                hint: 'e.g. Times Square, New York',
+                controller: queryController,
+                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.iconGrey, size: 20),
+              ),
+              const SizedBox(height: 14),
+              AppButton(
+                text: 'Search',
+                type: AppButtonType.outline,
+                isLoading: addressProvider.isSearching,
+                onPressed: () => runSearch(queryController.text.trim()),
+              ),
+              const SizedBox(height: 14),
+              if (hasSearched && results.isEmpty)
+                Text('No results found. Try a different search.', style: AppTextStyles.bodySmall),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 260),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: results.length,
+                  itemBuilder: (context, index) {
+                    final result = results[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.location_on_outlined, color: AppColors.primary),
+                      title: Text(result.shortAddress, style: AppTextStyles.bodyMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(result.details, style: AppTextStyles.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      onTap: () {
+                        context.read<AddressProvider>().addAddress(
+                              label: 'Address',
+                              fullAddress: result.shortAddress,
+                              details: result.details,
+                            );
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _showAddAddressModal(BuildContext context) {
     final labelController = TextEditingController();
     final addressController = TextEditingController();
@@ -30,6 +100,23 @@ class AddressesScreen extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                  _showSearchAddressModal(context);
+                },
+                child: Row(
+                  children: [
+                    const Icon(Icons.travel_explore_rounded, color: AppColors.primary, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Search for a real address instead',
+                      style: AppTextStyles.smallLabel.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               AppTextField(
                 label: 'Label (e.g. Home, Work)',
                 hint: 'Home',
@@ -172,6 +259,12 @@ class AddressesScreen extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: 20),
+                  AppButton(
+                    text: 'Search Real Address',
+                    icon: const Icon(Icons.travel_explore_rounded, color: AppColors.textWhite, size: 20),
+                    onPressed: () => _showSearchAddressModal(context),
+                  ),
+                  const SizedBox(height: 12),
                   AppButton(
                     text: AppStrings.addAddress,
                     type: AppButtonType.outline,

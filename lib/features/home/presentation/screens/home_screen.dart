@@ -7,6 +7,8 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/app_logger.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../data/models/food_model.dart';
 import '../../../../shared/widgets/app_category_card.dart';
 import '../../../../shared/widgets/app_error_view.dart';
 import '../../../../shared/widgets/app_food_card.dart';
@@ -131,50 +133,37 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Promotional Banners Carousel
-                SizedBox(
-                  height: 145,
-                  child: PageView(
-                    onPageChanged: (index) => homeProvider.setBannerIndex(index),
-                    children: [
-                      _buildPromoBanner(
-                        title: 'Get 30% OFF',
-                        subtitle: 'On your first order with code RIMRID10',
-                        color: const Color(0xFFFF6B00),
-                        icon: Icons.local_offer_rounded,
-                      ),
-                      _buildPromoBanner(
-                        title: 'Free Delivery',
-                        subtitle: 'On orders over \$35. Fast & hot!',
-                        color: const Color(0xFF2E7D32),
-                        icon: Icons.delivery_dining_rounded,
-                      ),
-                      _buildPromoBanner(
-                        title: 'Weekend Feast',
-                        subtitle: 'Special combos up to 50% discount',
-                        color: const Color(0xFF6A1B9A),
-                        icon: Icons.fastfood_rounded,
-                      ),
-                    ],
+                // Promotional Banners Carousel (real food photos from the API)
+                if (homeProvider.bannerFoods.isNotEmpty) ...[
+                  SizedBox(
+                    height: 145,
+                    child: PageView.builder(
+                      onPageChanged: (index) => homeProvider.setBannerIndex(index),
+                      itemCount: homeProvider.bannerFoods.length,
+                      itemBuilder: (context, index) {
+                        final food = homeProvider.bannerFoods[index];
+                        return _buildPromoBanner(food: food);
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    3,
-                    (index) => Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      height: 6,
-                      width: homeProvider.bannerIndex == index ? 16 : 6,
-                      decoration: BoxDecoration(
-                        color: homeProvider.bannerIndex == index ? AppColors.primary : AppColors.border,
-                        borderRadius: BorderRadius.circular(3),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      homeProvider.bannerFoods.length,
+                      (index) => Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        height: 6,
+                        width: homeProvider.bannerIndex == index ? 16 : 6,
+                        decoration: BoxDecoration(
+                          color: homeProvider.bannerIndex == index ? AppColors.primary : AppColors.border,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
+                ],
 
                 // Categories horizontal list
                 Padding(
@@ -323,60 +312,72 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPromoBanner({
-    required String title,
-    required String subtitle,
-    required Color color,
-    required IconData icon,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: AppRadius.borderLg,
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: AppTextStyles.heading.copyWith(
-                    color: AppColors.textWhite,
-                    fontSize: 22,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textWhite.withOpacity(0.9),
-                  ),
-                  maxLines: 2,
-                ),
-              ],
+  Widget _buildPromoBanner({required FoodModel food}) {
+    return GestureDetector(
+      onTap: () => context.push('/food/${food.id}'),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.borderLg,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surface.withOpacity(0.2),
-              shape: BoxShape.circle,
+          ],
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AppNetworkImage(imageUrl: food.imageUrl, fit: BoxFit.cover),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.75),
+                    Colors.black.withValues(alpha: 0.15),
+                  ],
+                ),
+              ),
             ),
-            child: Icon(icon, color: AppColors.textWhite, size: 36),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Today\'s Pick',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textWhite, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    food.name,
+                    style: AppTextStyles.heading.copyWith(color: AppColors.textWhite, fontSize: 20),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${food.restaurantName} • ${AppFormatters.currency(food.price)}',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textWhite.withValues(alpha: 0.9)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

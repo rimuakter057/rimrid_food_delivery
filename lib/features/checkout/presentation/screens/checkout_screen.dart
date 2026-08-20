@@ -27,6 +27,7 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _deliveryNoteController = TextEditingController();
+  bool _isPlacingOrder = false;
 
   @override
   void initState() {
@@ -40,17 +41,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  void _onPlaceOrder() {
+  void _onPlaceOrder() async {
     final cartProvider = context.read<CartProvider>();
     final orderProvider = context.read<OrderProvider>();
     final addressProvider = context.read<AddressProvider>();
     final paymentProvider = context.read<PaymentProvider>();
 
-    if (cartProvider.items.isEmpty) return;
+    if (cartProvider.items.isEmpty || _isPlacingOrder) return;
 
+    setState(() => _isPlacingOrder = true);
     AppLogger.info('CheckoutScreen', 'Placing order for total: ${cartProvider.total}');
 
-    final newOrder = orderProvider.createOrder(
+    final newOrder = await orderProvider.createOrder(
       items: List.from(cartProvider.items),
       subtotal: cartProvider.subtotal,
       deliveryFee: cartProvider.deliveryFee,
@@ -61,8 +63,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentMethod: paymentProvider.selectedPaymentMethod.title,
     );
 
+    if (!mounted) return;
     cartProvider.clearCart();
     AppLogger.info('CheckoutScreen', 'Order created successfully [ID: ${newOrder.id}]');
+    setState(() => _isPlacingOrder = false);
     context.go('/order-success/${newOrder.id}');
   }
 
@@ -254,6 +258,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             AppButton(
               text: '${AppStrings.placeOrder} • ${AppFormatters.currency(cartProvider.total)}',
               onPressed: _onPlaceOrder,
+              isLoading: _isPlacingOrder,
             ),
             const SizedBox(height: 32),
           ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../../core/network/network_result.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -8,8 +9,12 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../data/mock/mock_foods.dart';
 import '../../../../data/mock/mock_restaurants.dart';
+import '../../../../data/models/food_model.dart';
 import '../../../../data/models/restaurant_model.dart';
+import '../../../../data/repositories/restaurant_repository.dart';
+import '../../../../shared/widgets/app_error_view.dart';
 import '../../../../shared/widgets/app_food_card.dart';
+import '../../../../shared/widgets/app_loading.dart';
 import '../../../../shared/widgets/app_network_image.dart';
 import '../../../../shared/widgets/app_rating.dart';
 import '../../../cart/providers/cart_provider.dart';
@@ -28,18 +33,24 @@ class RestaurantDetailsScreen extends StatefulWidget {
 }
 
 class _RestaurantDetailsScreenState extends State<RestaurantDetailsScreen> with SingleTickerProviderStateMixin {
-  late RestaurantModel _restaurant;
+  final RestaurantRepository _restaurantRepository = RestaurantRepository();
   late TabController _tabController;
   final List<String> _tabs = ['All Items', 'Popular', 'Combo Deals', 'Beverages'];
+
+  late RestaurantModel _restaurant;
+  List<FoodModel> _menuFoods = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
     _restaurant = MockRestaurants.restaurants.firstWhere(
       (r) => r.id == widget.restaurantId,
       orElse: () => MockRestaurants.restaurants.first,
     );
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    _loadRestaurant();
   }
 
   @override
@@ -48,17 +59,43 @@ class _RestaurantDetailsScreenState extends State<RestaurantDetailsScreen> with 
     super.dispose();
   }
 
+  Future<void> _loadRestaurant() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    var restaurant = RestaurantRepository.getCachedRestaurant(widget.restaurantId);
+    if (restaurant == null) {
+      // Cache miss (e.g. deep link before Home/Search populated it) — fetch fresh.
+      final result = await _restaurantRepository.getRestaurants();
+      if (result is Success<List<RestaurantModel>>) {
+        restaurant = RestaurantRepository.getCachedRestaurant(widget.restaurantId);
+      }
+    }
+    restaurant ??= _restaurant; // fall back to the mock match found in initState
+
+    final menuResult = await _restaurantRepository.getRestaurantMeals(restaurant);
+    if (!mounted) return;
+
+    setState(() {
+      _restaurant = restaurant!;
+      if (menuResult is Success<List<FoodModel>>) {
+        _menuFoods = menuResult.data;
+      } else if (menuResult is Failure<List<FoodModel>>) {
+        _errorMessage = menuResult.error;
+      }
+      _isLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final favoritesProvider = context.watch<FavoritesProvider>();
     final cartProvider = context.read<CartProvider>();
     final isFavorite = favoritesProvider.isRestaurantFavorite(_restaurant.id);
 
-    final restaurantFoods = MockFoods.foods
-        .where((f) => f.restaurantId == _restaurant.id || f.restaurantName == _restaurant.name)
-        .toList();
-
-    final displayFoods = restaurantFoods.isNotEmpty ? restaurantFoods : MockFoods.foods.take(6).toList();
+    final displayFoods = _menuFoods.isNotEmpty ? _menuFoods : MockFoods.foods.take(6).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -181,27 +218,36 @@ class _RestaurantDetailsScreenState extends State<RestaurantDetailsScreen> with 
                   const SizedBox(height: 16),
 
                   // Menu list
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: displayFoods.length,
-                    itemBuilder: (context, index) {
-                      final food = displayFoods[index];
-                      return AppFoodCard(
-                        food: food,
-                        layout: FoodCardLayout.horizontal,
-                        isFavorite: favoritesProvider.isFoodFavorite(food.id),
-                        onToggleFavorite: () => favoritesProvider.toggleFoodFavorite(food.id),
-                        onTap: () => context.push('/food/${food.id}'),
-                        onAddToCart: () {
-                          cartProvider.addToCart(food);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${food.name} added to cart'), duration: const Duration(seconds: 1)),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                  if (_isLoading) ...[
+                    const Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: AppLoading(message: 'Fetching the menu...'),
+                    ),
+                  ] else if (_errorMessage != null && _menuFoods.isEmpty) ...[
+                    AppErrorView(message: _errorMessage!, onRetry: _loadRestaurant),
+                  ] else ...[
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: displayFoods.length,
+                      itemBuilder: (context, index) {
+                        final food = displayFoods[index];
+                        return AppFoodCard(
+                          food: food,
+                          layout: FoodCardLayout.horizontal,
+                          isFavorite: favoritesProvider.isFoodFavorite(food.id),
+                          onToggleFavorite: () => favoritesProvider.toggleFoodFavorite(food.id),
+                          onTap: () => context.push('/food/${food.id}'),
+                          onAddToCart: () {
+                            cartProvider.addToCart(food);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${food.name} added to cart'), duration: const Duration(seconds: 1)),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 80),
                 ],
               ),
